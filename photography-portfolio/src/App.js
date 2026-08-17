@@ -78,7 +78,7 @@ export default function App() {
       <style>{css}</style>
 
       <header style={styles.header}>
-        <span style={styles.logo}>Nithin Kashyap</span>
+        <span style={styles.logo}>Nithin Kashyap Venkatesha</span>
         <nav style={styles.nav}>
           <a href="#work" style={styles.navLink}>Work</a>
           <a href="#about" style={styles.navLink}>About</a>
