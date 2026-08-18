@@ -21,13 +21,27 @@ import React, { useState, useEffect, useCallback } from "react";
  * view. That's an intentional exception to the right-click/drag blocking
  * above — anyone who opens a photo can save it on purpose. Remove the
  * `downloadBtn` block in the lightbox JSX if you'd rather not offer that.
+ *
+ * ============================================================
+ * EMAIL-CAPTURE POPUP — SETUP REQUIRED (3 steps, ~5 minutes)
+ * ============================================================
+ * A static site (GitHub Pages, Netlify, etc.) has no backend, so it can't
+ * send email on its own. This uses Formspree — a free form-relay service —
+ * to forward whatever the visitor types straight to your inbox.
+ *
+ * 1. Go to https://formspree.io and make a free account (free tier =
+ * 2. Create a new form, and set the notification email to
+ *    vnithinkashyap@gmail.com — Formspree will verify that address once.
+ * 3. Formspree gives you an endpoint that looks like:
+ *      https://formspree.io/f/abcd1234
+ *    Paste it into FORMSPREE_ENDPOINT below, replacing the placeholder.
+ *
+ * Until you paste a real endpoint, the form will show a friendly error
+ * instead of silently failing — so you'll know right away if it's not
+ * wired up yet.
  */
+const FORMSPREE_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // <-- replace YOUR_FORM_ID
 
-/**
- * Place your images in `public/photos/` (Vite) or `public/photos/` (CRA) —
- * both serve the `public` folder at the site root, so `/photos/VNK_1.jpg`
- * resolves correctly in either setup without any import statements.
- */
 const PHOTO_COUNT = 38;
 const photos = Array.from({ length: PHOTO_COUNT }, (_, i) => {
   const n = i + 1;
@@ -39,9 +53,116 @@ const photos = Array.from({ length: PHOTO_COUNT }, (_, i) => {
   };
 });
 
+function CalendarModal({ onClose }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+
+  const isValidEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isValidEmail(email)) {
+      setStatus("error");
+      return;
+    }
+    if (FORMSPREE_ENDPOINT.includes("YOUR_FORM_ID")) {
+      // Placeholder still in place — tell the developer, not the visitor.
+      console.warn(
+        "CalendarModal: FORMSPREE_ENDPOINT is still a placeholder. See setup notes at the top of App.js."
+      );
+      setStatus("error");
+      return;
+    }
+    setStatus("sending");
+    try {
+      const res = await fetch(FORMSPREE_ENDPOINT, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          _subject: "New calendar request from portfolio site",
+          message: `${email} wants the printable yearly calendar.`,
+        }),
+      });
+      if (res.ok) {
+        setStatus("sent");
+        localStorage.setItem("calendarModalDismissed", "true");
+        setTimeout(onClose, 1800);
+      } else {
+        setStatus("error");
+      }
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  const dismiss = () => {
+    localStorage.setItem("calendarModalDismissed", "true");
+    onClose();
+  };
+
+  return (
+    <div style={modalStyles.overlay} onClick={dismiss}>
+      <div style={modalStyles.card} onClick={(e) => e.stopPropagation()}>
+        <button style={modalStyles.closeBtn} onClick={dismiss} aria-label="Close">
+          ×
+        </button>
+
+        {status === "sent" ? (
+          <>
+            <h3 style={modalStyles.heading}>Sent. <em style={modalStyles.em}>Go check your inbox.</em></h3>
+            <p style={modalStyles.sub}>Your twelve-month excuse to procrastinate is on its way.</p>
+          </>
+        ) : (
+          <>
+            <h3 style={modalStyles.heading}>
+              Before you scroll, <em style={modalStyles.em}>a gift.</em>
+            </h3>
+            <p style={modalStyles.sub}>
+              Drop your email and I'll send you a printable yearly calendar made from
+              these frames. No spam, just twelve months of an excuse to hang
+              something on your wall.
+            </p>
+            <form onSubmit={handleSubmit} style={modalStyles.form}>
+              <input
+                type="email"
+                required
+                placeholder="you@somewhere.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (status === "error") setStatus("idle");
+                }}
+                style={modalStyles.input}
+              />
+              <button
+                type="submit"
+                style={modalStyles.submitBtn}
+                disabled={status === "sending"}
+              >
+                {status === "sending" ? "Sending…" : "Send me the calendar"}
+              </button>
+            </form>
+            {status === "error" && (
+              <p style={modalStyles.errorText}>
+                Couldn't send that, double-check the email, or try again in a moment.
+              </p>
+            )}
+            <p style={modalStyles.finePrint}>One email. Twelve photos. Zero small talk.</p>
+            <button style={modalStyles.laterLink} onClick={dismiss}>
+              Maybe later, I'll just look.
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeId, setActiveId] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -54,6 +175,16 @@ export default function App() {
       document.head.removeChild(link);
       clearTimeout(t);
     };
+  }, []);
+
+  // Show the calendar popup once per visitor (per browser), after a short delay
+  // so it doesn't slam the page the instant it loads.
+  useEffect(() => {
+    const alreadyDismissed = localStorage.getItem("calendarModalDismissed");
+    if (!alreadyDismissed) {
+      const t = setTimeout(() => setShowCalendarModal(true), 1200);
+      return () => clearTimeout(t);
+    }
   }, []);
 
   const active = photos.find((p) => p.id === activeId);
@@ -77,6 +208,10 @@ export default function App() {
     <div style={styles.page} className={loaded ? "loaded" : ""}>
       <style>{css}</style>
 
+      {showCalendarModal && (
+        <CalendarModal onClose={() => setShowCalendarModal(false)} />
+      )}
+
       <header style={styles.header}>
         <span style={styles.logo}>Nithin Kashyap Venkatesha</span>
         <nav style={styles.nav}>
@@ -91,7 +226,7 @@ export default function App() {
           Photographs, <em style={styles.heroEm}>mostly&nbsp;quiet</em>.
         </h1>
         <p style={styles.heroSub}>
-          A running contact sheet of light, water, and the odd afternoon —
+          A running contact sheet of light, water, and the odd afternoon;
           shot on whatever camera was in reach.
         </p>
       </section>
@@ -114,9 +249,6 @@ export default function App() {
                 draggable={false}
                 onDragStart={preventSave}
               />
-            </span>
-            <span style={styles.captionRow}>
-              <span style={styles.captionFrame}>Fr. {p.frame}</span>
             </span>
           </button>
         ))}
@@ -172,10 +304,10 @@ export default function App() {
       </section>
 
       <footer id="contact" style={styles.footer}>
-        <a href="mailto:hello@example.com" style={styles.footerLink}>
-          hello@example.com
+        <a href="mailto:vnithinkashyap@gmail.com" style={styles.footerLink}>
+          vnithinkashyap@gmail.com
         </a>
-        <span style={styles.footerNote}>© {new Date().getFullYear()} — Munich</span>
+        <span style={styles.footerNote}>© {new Date().getFullYear()}  Munich</span>
       </footer>
 
       {active && (
@@ -186,7 +318,6 @@ export default function App() {
           <figure style={styles.lightboxFigure} onClick={(e) => e.stopPropagation()}>
             <img src={active.src} alt={`Frame ${active.frame}`} style={styles.lightboxImg} />
             <figcaption style={styles.lightboxCaption}>
-              <span>Fr. {active.frame}</span>
               <a
                 href={active.src}
                 download={active.filename}
@@ -201,6 +332,96 @@ export default function App() {
     </div>
   );
 }
+
+const modalStyles = {
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(20,19,17,0.55)",
+    backdropFilter: "blur(3px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+    padding: "5vw",
+  },
+  card: {
+    position: "relative",
+    background: "#F3F2EE",
+    borderRadius: "14px",
+    padding: "40px 36px",
+    maxWidth: "420px",
+    width: "100%",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+    fontFamily: "'Work Sans', sans-serif",
+  },
+  closeBtn: {
+    position: "absolute",
+    top: "14px",
+    right: "16px",
+    background: "none",
+    border: "none",
+    fontSize: "1.4rem",
+    color: "#8A8578",
+    cursor: "pointer",
+    lineHeight: 1,
+  },
+  heading: {
+    fontFamily: "'Fraunces', serif",
+    fontWeight: 300,
+    fontSize: "1.7rem",
+    lineHeight: 1.2,
+    margin: "0 0 12px",
+    color: "#1C1B19",
+  },
+  em: { fontStyle: "italic", color: "#4B5A43" },
+  sub: {
+    fontSize: "0.92rem",
+    lineHeight: 1.55,
+    color: "#68645A",
+    margin: "0 0 22px",
+  },
+  form: { display: "flex", flexDirection: "column", gap: "10px" },
+  input: {
+    padding: "12px 14px",
+    fontSize: "0.92rem",
+    border: "1px solid #D8D5CC",
+    borderRadius: "8px",
+    background: "#fff",
+    fontFamily: "'Work Sans', sans-serif",
+    outline: "none",
+  },
+  submitBtn: {
+    padding: "12px 14px",
+    fontSize: "0.88rem",
+    letterSpacing: "0.02em",
+    border: "none",
+    borderRadius: "8px",
+    background: "#1C1B19",
+    color: "#F3F2EE",
+    cursor: "pointer",
+  },
+  errorText: {
+    fontSize: "0.8rem",
+    color: "#B0503F",
+    margin: "10px 0 0",
+  },
+  finePrint: {
+    fontSize: "0.72rem",
+    color: "#8A8578",
+    marginTop: "16px",
+    marginBottom: "6px",
+  },
+  laterLink: {
+    background: "none",
+    border: "none",
+    padding: 0,
+    fontSize: "0.78rem",
+    color: "#8A8578",
+    textDecoration: "underline",
+    cursor: "pointer",
+  },
+};
 
 const styles = {
   page: {
