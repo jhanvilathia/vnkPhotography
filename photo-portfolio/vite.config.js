@@ -13,7 +13,7 @@ import react from '@vitejs/plugin-react'
 // ============================================================
 export default defineConfig({
   plugins: [react()],
-  base: '/photography-portfolio/',
+base: '/vnkPhotography/',
   server: {
     // Needed for tunneling tools like localtunnel/ngrok — Vite blocks
     // unrecognized hostnames by default as a security measure.
