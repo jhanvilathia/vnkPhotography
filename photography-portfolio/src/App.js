@@ -30,8 +30,9 @@ import React, { useState, useEffect, useCallback } from "react";
  * to forward whatever the visitor types straight to your inbox.
  *
  * 1. Go to https://formspree.io and make a free account (free tier =
+ *    50 submissions/month, plenty for this).
  * 2. Create a new form, and set the notification email to
- *    vnithinkashyap@gmail.com — Formspree will verify that address once.
+ *    jhanvilathia49@gmail.com — Formspree will verify that address once.
  * 3. Formspree gives you an endpoint that looks like:
  *      https://formspree.io/f/abcd1234
  *    Paste it into FORMSPREE_ENDPOINT below, replacing the placeholder.
@@ -39,8 +40,16 @@ import React, { useState, useEffect, useCallback } from "react";
  * Until you paste a real endpoint, the form will show a friendly error
  * instead of silently failing — so you'll know right away if it's not
  * wired up yet.
+ *
+ * SPAM PROTECTION: this code includes a honeypot field (bots that
+ * auto-fill every input trip it, and get silently dropped before any
+ * network request is even made — doesn't touch your quota). For the
+ * bigger lever, also turn on reCAPTCHA in the Formspree dashboard:
+ * your form → Settings → Spam Filtering → enable reCAPTCHA + the
+ * built-in Akismet filter. That combo blocks the overwhelming majority
+ * of bot/bulk submissions before they count against the monthly limit.
  */
-const FORMSPREE_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // <-- replace YOUR_FORM_ID
+const FORMSPREE_ENDPOINT = "https://formspree.io/f/xgawnbra";
 
 const PHOTO_COUNT = 38;
 const photos = Array.from({ length: PHOTO_COUNT }, (_, i) => {
@@ -56,11 +65,19 @@ const photos = Array.from({ length: PHOTO_COUNT }, (_, i) => {
 function CalendarModal({ onClose }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+  const gotchaRef = React.useRef(null);
 
   const isValidEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // If the honeypot got filled in, it's a bot — silently drop it without
+    // hitting the network or the Formspree quota at all.
+    if (gotchaRef.current && gotchaRef.current.value) {
+      setStatus("sent"); // pretend success so the bot doesn't retry
+      setTimeout(onClose, 1200);
+      return;
+    }
     if (!isValidEmail(email)) {
       setStatus("error");
       return;
@@ -124,6 +141,18 @@ function CalendarModal({ onClose }) {
               something on your wall.
             </p>
             <form onSubmit={handleSubmit} style={modalStyles.form}>
+              {/* Honeypot: invisible to real visitors, but bots that auto-fill
+                  every field on a page will fill this in too. Formspree
+                  silently discards any submission where it's non-empty. */}
+              <input
+                ref={gotchaRef}
+                type="text"
+                name="_gotcha"
+                tabIndex="-1"
+                autoComplete="off"
+                style={modalStyles.honeypot}
+                aria-hidden="true"
+              />
               <input
                 type="email"
                 required
@@ -163,6 +192,16 @@ export default function App() {
   const [activeId, setActiveId] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [loadedPhotoIds, setLoadedPhotoIds] = useState(() => new Set());
+
+  const markPhotoLoaded = useCallback((id) => {
+    setLoadedPhotoIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -226,7 +265,7 @@ export default function App() {
           Photographs, <em style={styles.heroEm}>mostly&nbsp;quiet</em>.
         </h1>
         <p style={styles.heroSub}>
-          A running contact sheet of light, water, and the odd afternoon;
+          A running contact sheet of light, water, and the odd afternoon,
           shot on whatever camera was in reach.
         </p>
       </section>
@@ -241,13 +280,21 @@ export default function App() {
             aria-label={`Open frame ${p.frame}`}
           >
             <span className="frame-imgwrap" style={styles.imgWrap} onContextMenu={preventSave}>
+              {!loadedPhotoIds.has(p.id) && (
+                <span className="photo-spinner" aria-hidden="true" />
+              )}
               <img
                 src={p.src}
                 alt={`Frame ${p.frame}`}
-                style={styles.img}
+                style={{
+                  ...styles.img,
+                  opacity: loadedPhotoIds.has(p.id) ? 1 : 0,
+                }}
                 loading="lazy"
                 draggable={false}
                 onDragStart={preventSave}
+                onLoad={() => markPhotoLoaded(p.id)}
+                onError={() => markPhotoLoaded(p.id)}
               />
             </span>
           </button>
@@ -292,12 +339,17 @@ export default function App() {
           </p>
         </div>
         <div className="about-photo" style={styles.aboutImgWrap} onContextMenu={preventSave}>
+          {!loadedPhotoIds.has("about") && (
+            <span className="photo-spinner" aria-hidden="true" />
+          )}
           <img
             src="vnk.jpeg"
             alt="Portrait of the photographer"
-            style={styles.aboutImg}
+            style={{ ...styles.aboutImg, opacity: loadedPhotoIds.has("about") ? 1 : 0 }}
             draggable={false}
             onDragStart={preventSave}
+            onLoad={() => markPhotoLoaded("about")}
+            onError={() => markPhotoLoaded("about")}
           />
           <span style={styles.watermark}>N. Kashyap</span>
         </div>
@@ -307,7 +359,7 @@ export default function App() {
         <a href="mailto:vnithinkashyap@gmail.com" style={styles.footerLink}>
           vnithinkashyap@gmail.com
         </a>
-        <span style={styles.footerNote}>© {new Date().getFullYear()}  Munich</span>
+        <span style={styles.footerNote}>© {new Date().getFullYear()} Munich</span>
       </footer>
 
       {active && (
@@ -421,6 +473,14 @@ const modalStyles = {
     textDecoration: "underline",
     cursor: "pointer",
   },
+  honeypot: {
+    position: "absolute",
+    left: "-9999px",
+    width: "1px",
+    height: "1px",
+    opacity: 0,
+    pointerEvents: "none",
+  },
 };
 
 const styles = {
@@ -459,6 +519,7 @@ const styles = {
     fontSize: "clamp(2.2rem, 5vw, 3.6rem)",
     lineHeight: 1.08,
     margin: 0,
+    color: "#68645A"
   },
   heroEm: { fontStyle: "italic", color: "#4B5A43" },
   heroSub: {
@@ -488,6 +549,7 @@ const styles = {
     textAlign: "left",
   },
   imgWrap: {
+    position: "relative",
     display: "block",
     width: "100%",
     aspectRatio: "4 / 5",
@@ -499,7 +561,7 @@ const styles = {
     height: "100%",
     objectFit: "cover",
     display: "block",
-    transition: "transform 0.6s cubic-bezier(.2,.7,.2,1)",
+    transition: "transform 0.6s cubic-bezier(.2,.7,.2,1), opacity 0.4s ease",
   },
   captionRow: {
     display: "flex",
@@ -685,8 +747,25 @@ const css = `
 
   button:focus-visible, a:focus-visible { outline: 2px solid #4B5A43; outline-offset: 3px; }
 
+  .photo-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 22px;
+    height: 22px;
+    margin: -11px 0 0 -11px;
+    border: 2px solid rgba(0,0,0,0.12);
+    border-top-color: #4B5A43;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .frame { animation: none; opacity: 1; }
     img { transition: none !important; }
+    .photo-spinner { animation-duration: 1.6s; }
   }
 `;
