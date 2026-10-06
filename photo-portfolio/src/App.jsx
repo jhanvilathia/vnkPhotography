@@ -51,12 +51,18 @@ import React, { useState, useEffect, useCallback } from "react";
  */
 const FORMSPREE_ENDPOINT = "https://formspree.io/f/xgawnbra";
 
+// Full-size originals are attached to this GitHub Release (the site itself
+// only ships the smaller web copies in public/photos).
+const ORIGINALS_URL =
+  "https://github.com/jhanvilathia/vnkPhotography/releases/download/originals";
+
 const PHOTO_COUNT = 38;
 const photos = Array.from({ length: PHOTO_COUNT }, (_, i) => {
   const n = i + 1;
   return {
     id: n,
-    src: `/photos/VNK_${n}.jpg`,
+    src: `${import.meta.env.BASE_URL}photos/VNK_${n}.jpg`,
+    download: `${ORIGINALS_URL}/VNK_${n}.jpg`,
     filename: `VNK_${n}.jpg`,
     frame: String(n).padStart(3, "0"),
   };
@@ -343,7 +349,7 @@ export default function App() {
             <span className="photo-spinner" aria-hidden="true" />
           )}
           <img
-            src="vnk.jpeg"
+            src={`${import.meta.env.BASE_URL}vnk.jpeg`}
             alt="Portrait of the photographer"
             style={{ ...styles.aboutImg, opacity: loadedPhotoIds.has("about") ? 1 : 0 }}
             draggable={false}
@@ -371,7 +377,7 @@ export default function App() {
             <img src={active.src} alt={`Frame ${active.frame}`} style={styles.lightboxImg} />
             <figcaption style={styles.lightboxCaption}>
               <a
-                href={active.src}
+                href={active.download}
                 download={active.filename}
                 style={styles.downloadBtn}
               >
