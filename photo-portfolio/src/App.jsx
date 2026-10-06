@@ -54,7 +54,7 @@ const FORMSPREE_ENDPOINT = "https://formspree.io/f/xgawnbra";
 // Full-size originals are attached to this GitHub Release (the site itself
 // only ships the smaller web copies in public/photos).
 const ORIGINALS_URL =
-  "https://github.com/jhanvilathia/vnkPhotography/releases/download/originals";
+  "https://github.com/vnkPhotography/vnkPhotography/releases/download/originals";
 
 const PHOTO_COUNT = 38;
 const photos = Array.from({ length: PHOTO_COUNT }, (_, i) => {

@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "resize": "node scripts/resize-photos.mjs",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist --repo https://github.com/jhanvilathia/vnkPhotography.git"
+    "deploy": "gh-pages -d dist --repo https://github.com/vnkPhotography/vnkPhotography.git"
   },
   "dependencies": {
     "react": "^19.2.8",
